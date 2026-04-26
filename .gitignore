@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+venv/
+*.py[cod]
+
+# Models (Too large for Git)
+model_weights/
+*.zip
+*.bin
+*.pth
+
+# Frontend
+node_modules/
+.env
+build/
+dist/
