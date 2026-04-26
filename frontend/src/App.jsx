@@ -1,121 +1,83 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [text, setText] = useState('')
+  const [headlines, setHeadlines] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const handleTranscribe = async () => {
+    if (!text) return
+    setLoading(true)
+    try {
+      const response = await fetch('http://127.0.0.1:8000/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      })
+      const data = await response.json()
+      setHeadlines(data)
+    } catch (error) {
+      console.error("The Scribe is silent. Error:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="min-h-screen p-8 md:p-24 max-w-4xl mx-auto space-y-12">
+      {/* Header */}
+      <header className="text-center space-y-2">
+        <h1 className="text-4xl md:text-5xl font-serif tracking-widest text-ink uppercase">The News Scribe</h1>
+        <p className="text-sm font-sans tracking-[0.2em] text-sepia/60 uppercase italic">Medieval Minimal Headline Generator</p>
+      </header>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
+      {/* Input Area */}
+      <section className="space-y-6">
+        <textarea
+          className="w-full h-64 p-8 bg-white/50 border border-sepia/20 rounded-sm font-serif text-lg leading-relaxed focus:outline-none focus:border-quill/40 transition-colors resize-none placeholder:italic"
+          placeholder="Deposit your news scroll here..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        
+        <div className="flex justify-center">
+          <button
+            onClick={handleTranscribe}
+            disabled={loading}
+            className="px-12 py-4 border border-ink text-ink hover:bg-ink hover:text-parchment transition-all duration-500 uppercase tracking-widest text-xs disabled:opacity-30"
+          >
+            {loading ? 'Transcribing...' : 'Commence Transcription'}
+          </button>
         </div>
       </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {/* Results Area */}
+      {headlines && (
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+          <ResultCard title="The Royal Record" text={headlines.royal} icon="📜" />
+          <ResultCard title="The Bard's Tale" text={headlines.bard} icon="🎭" />
+          <ResultCard title="The Messenger" text={headlines.messenger} icon="🕊️" />
+        </section>
+      )}
+    </div>
+  )
+}
+
+function ResultCard({ title, text, icon }) {
+  return (
+    <div className="p-6 border border-sepia/10 bg-white/30 backdrop-blur-sm space-y-4 hover:border-sepia/30 transition-colors group">
+      <div className="flex justify-between items-center">
+        <span className="text-[10px] tracking-widest uppercase text-sepia/60">{title}</span>
+        <span className="opacity-40 group-hover:opacity-100 transition-opacity">{icon}</span>
+      </div>
+      <p className="text-xl font-serif italic text-ink leading-snug">"{text}"</p>
+      <button 
+        onClick={() => navigator.clipboard.writeText(text)}
+        className="text-[9px] uppercase tracking-tighter text-sepia/40 hover:text-quill transition-colors"
+      >
+        Copy to Parchment
+      </button>
+    </div>
   )
 }
 

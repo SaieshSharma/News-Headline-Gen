@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -6,32 +7,48 @@ import torch
 
 app = FastAPI()
 
-# Enable CORS so your React app can talk to this server
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], # Vite's default port
+    allow_origins=["*"], 
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load T5-Small from the internet temporarily
+# --- SMART MODEL LOADER ---
+# This path points to where you will unzip your Colab file
+LOCAL_MODEL_PATH = "./model_weights"
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model_name = "t5-small" 
 
-print(f"Loading {model_name} on {device}...")
-tokenizer = T5Tokenizer.from_pretrained(model_name)
-model = T5ForConditionalGeneration.from_pretrained(model_name).to(device)
+if os.path.exists(LOCAL_MODEL_PATH) and os.listdir(LOCAL_MODEL_PATH):
+    print(f"--- 🏰 Loading your TRAINED scribe model from {LOCAL_MODEL_PATH} ---")
+    model_source = LOCAL_MODEL_PATH
+else:
+    print("--- 🌐 Local model not found. Using 't5-small' from the cloud temporarily ---")
+    model_source = "t5-small"
+
+tokenizer = T5Tokenizer.from_pretrained(model_source)
+model = T5ForConditionalGeneration.from_pretrained(model_source).to(device)
 
 class Article(BaseModel):
     text: str
 
 @app.post("/generate")
 async def generate_headlines(article: Article):
+    # Professional standard: Add the task prefix
     input_text = "summarize: " + article.text
     inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=512).to(device)
     
     with torch.no_grad():
-        outputs = model.generate(inputs["input_ids"], max_length=30, num_beams=4)
+        # Using 3 different decoding strategies to give the user variety
+        # 1. Conservative
+        out1 = model.generate(inputs["input_ids"], num_beams=4, max_length=25)
+        # 2. Creative
+        out2 = model.generate(inputs["input_ids"], do_sample=True, temperature=0.9, top_p=0.95, max_length=25)
+        # 3. Concise
+        out3 = model.generate(inputs["input_ids"], length_penalty=0.5, max_length=15)
     
-    headline = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return {"headline": headline}
+    return {
+        "royal": tokenizer.decode(out1[0], skip_special_tokens=True),
+        "bard": tokenizer.decode(out2[0], skip_special_tokens=True),
+        "messenger": tokenizer.decode(out3[0], skip_special_tokens=True)
+    }
