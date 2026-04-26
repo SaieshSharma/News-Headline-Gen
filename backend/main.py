@@ -1,35 +1,37 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 import torch
 
 app = FastAPI()
 
-# Load model (assume it's in a folder called 'model_weights')
-device = "cuda" if torch.cuda.is_available() else "cpu"
-tokenizer = T5Tokenizer.from_pretrained("./model_weights")
-model = T5ForConditionalGeneration.from_pretrained("./model_weights").to(device)
+# Enable CORS so your React app can talk to this server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"], # Vite's default port
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-class NewsInput(BaseModel):
+# Load T5-Small from the internet temporarily
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model_name = "t5-small" 
+
+print(f"Loading {model_name} on {device}...")
+tokenizer = T5Tokenizer.from_pretrained(model_name)
+model = T5ForConditionalGeneration.from_pretrained(model_name).to(device)
+
+class Article(BaseModel):
     text: str
 
-@app.post("/generate-variants")
-async def generate_variants(input_data: NewsInput):
-    text = "summarize: " + input_data.text
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512).to(device)
+@app.post("/generate")
+async def generate_headlines(article: Article):
+    input_text = "summarize: " + article.text
+    inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=512).to(device)
     
-    # Variant 1: Conservative (Beam Search)
-    out1 = model.generate(inputs["input_ids"], num_beams=5, max_length=20)
+    with torch.no_grad():
+        outputs = model.generate(inputs["input_ids"], max_length=30, num_beams=4)
     
-    # Variant 2: Creative (Sampling + Temperature)
-    # Temperature > 1.0 makes the model "braver" with word choices
-    out2 = model.generate(inputs["input_ids"], do_sample=True, temperature=1.2, top_k=50, max_length=20)
-    
-    # Variant 3: Concise (Length Penalty)
-    out3 = model.generate(inputs["input_ids"], length_penalty=0.5, max_length=15)
-
-    return {
-        "professional": tokenizer.decode(out1[0], skip_special_tokens=True),
-        "creative": tokenizer.decode(out2[0], skip_special_tokens=True),
-        "concise": tokenizer.decode(out3[0], skip_special_tokens=True)
-    }
+    headline = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return {"headline": headline}
