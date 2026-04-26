@@ -23,6 +23,19 @@ function App() {
     }
   }
 
+  const ScribeLoader = () => (
+  <div className="flex flex-col items-center justify-center space-y-4 py-12">
+    {/* The "Flame" */}
+    <div className="relative">
+      <div className="w-4 h-4 bg-quill rounded-full blur-sm animate-flicker" />
+      <div className="absolute top-0 w-4 h-4 bg-sepia/20 rounded-full animate-ping" />
+    </div>
+    <p className="text-xs tracking-[0.4em] uppercase text-sepia/40 animate-pulse">
+      The Scribe is consulting the scrolls...
+    </p>
+  </div>
+)
+
   return (
     // Responsive Tip: px-6 for mobile, md:p-24 for desktop. 
     // This prevents text from hitting the screen edges on an iPhone.
@@ -62,13 +75,16 @@ function App() {
       </section>
 
       {/* Results Section */}
-      {headlines && (
+      {loading ? (
+  <ScribeLoader />
+) : (
+      headlines && (
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 animate-in fade-in slide-in-from-bottom-8 duration-1000">
           <ResultCard title="The Royal Record" text={headlines.royal} icon="📜" />
           <ResultCard title="The Bard's Tale" text={headlines.bard} icon="🎭" />
           <ResultCard title="The Messenger" text={headlines.messenger} icon="🕊️" />
         </section>
-      )}
+      ))}
     </div>
   )
 }
