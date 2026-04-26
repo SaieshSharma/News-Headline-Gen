@@ -78,13 +78,14 @@ function App() {
       {loading ? (
   <ScribeLoader />
 ) : (
-      headlines && (
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 animate-in fade-in slide-in-from-bottom-8 duration-1000">
-          <ResultCard title="The Royal Record" text={headlines.royal} icon="📜" />
-          <ResultCard title="The Bard's Tale" text={headlines.bard} icon="🎭" />
-          <ResultCard title="The Messenger" text={headlines.messenger} icon="🕊️" />
-        </section>
-      ))}
+     headlines && (
+  <div className="mt-12 pt-8 border-t border-sepia/10 flex flex-wrap justify-center gap-8 opacity-40 text-[10px] uppercase tracking-widest font-sans">
+    <div>Inference: {headlines.metadata.latency_ms}ms</div>
+    <div>Tokens: {headlines.metadata.input_tokens}</div>
+    <div>Engine: {headlines.metadata.model}</div>
+    <div>Hardware: {headlines.metadata.device.toUpperCase()}</div>
+  </div>
+))}
     </div>
   )
 }

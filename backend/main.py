@@ -1,3 +1,4 @@
+import time
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,10 +35,12 @@ class Article(BaseModel):
 
 @app.post("/generate")
 async def generate_headlines(article: Article):
+    start_time = time.time()
     # Professional standard: Add the task prefix
     input_text = "summarize: " + article.text
     inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=512).to(device)
-    
+    input_token_count = inputs["input_ids"].shape[1] # Count the tokens
+
     with torch.no_grad():
         # Using 3 different decoding strategies to give the user variety
         # 1. Conservative
@@ -46,9 +49,21 @@ async def generate_headlines(article: Article):
         out2 = model.generate(inputs["input_ids"], do_sample=True, temperature=0.9, top_p=0.95, max_length=25)
         # 3. Concise
         out3 = model.generate(inputs["input_ids"], length_penalty=0.5, max_length=15)
+
+
+        end_time = time.time()
+        latency = round((end_time - start_time) * 1000, 2) # Convert to ms
     
     return {
-        "royal": tokenizer.decode(out1[0], skip_special_tokens=True),
-        "bard": tokenizer.decode(out2[0], skip_special_tokens=True),
-        "messenger": tokenizer.decode(out3[0], skip_special_tokens=True)
+"results": {
+            "royal": tokenizer.decode(out1[0], skip_special_tokens=True),
+            "bard": tokenizer.decode(out2[0], skip_special_tokens=True),
+            "messenger": tokenizer.decode(out3[0], skip_special_tokens=True)
+        },
+        "metadata": {
+            "latency_ms": latency,
+            "input_tokens": input_token_count,
+            "device": device,
+            "model": "T5-Small (Fine-tuned)"
+        }
     }
