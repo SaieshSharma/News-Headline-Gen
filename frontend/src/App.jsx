@@ -24,17 +24,26 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen p-8 md:p-24 max-w-4xl mx-auto space-y-12">
-      {/* Header */}
-      <header className="text-center space-y-2">
-        <h1 className="text-4xl md:text-5xl font-serif tracking-widest text-ink uppercase">The News Scribe</h1>
-        <p className="text-sm font-sans tracking-[0.2em] text-sepia/60 uppercase italic">Medieval Minimal Headline Generator</p>
+    // Responsive Tip: px-6 for mobile, md:p-24 for desktop. 
+    // This prevents text from hitting the screen edges on an iPhone.
+    <div className="min-h-screen px-6 py-12 md:p-24 max-w-5xl mx-auto space-y-10 md:space-y-16">
+      
+      {/* Header Section */}
+      <header className="text-center space-y-3">
+        {/* text-3xl for mobile, md:text-6xl for high-end desktop look */}
+        <h1 className="text-3xl md:text-6xl font-serif tracking-[0.2em] text-ink uppercase transition-all duration-700">
+          The News Scribe
+        </h1>
+        <p className="text-[10px] md:text-xs font-sans tracking-[0.3em] text-sepia/60 uppercase italic">
+          Medieval Minimal Headline Generator
+        </p>
       </header>
 
-      {/* Input Area */}
+      {/* Input Section */}
       <section className="space-y-6">
         <textarea
-          className="w-full h-64 p-8 bg-white/50 border border-sepia/20 rounded-sm font-serif text-lg leading-relaxed focus:outline-none focus:border-quill/40 transition-colors resize-none placeholder:italic"
+          // h-48 on mobile (saves space), h-80 on desktop
+          className="w-full h-48 md:h-80 p-6 md:p-10 bg-white/40 border border-sepia/10 rounded-sm font-serif text-base md:text-xl leading-relaxed focus:outline-none focus:border-quill/30 transition-all resize-none placeholder:italic placeholder:opacity-30"
           placeholder="Deposit your news scroll here..."
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -44,16 +53,17 @@ function App() {
           <button
             onClick={handleTranscribe}
             disabled={loading}
-            className="px-12 py-4 border border-ink text-ink hover:bg-ink hover:text-parchment transition-all duration-500 uppercase tracking-widest text-xs disabled:opacity-30"
+            // Mobile: full width (w-full), Desktop: auto-width (md:w-auto)
+            className="w-full md:w-auto px-16 py-5 border border-ink text-ink hover:bg-ink hover:text-parchment transition-all duration-500 uppercase tracking-[0.2em] text-[10px] md:text-xs disabled:opacity-20"
           >
             {loading ? 'Transcribing...' : 'Commence Transcription'}
           </button>
         </div>
       </section>
 
-      {/* Results Area */}
+      {/* Results Section */}
       {headlines && (
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 animate-in fade-in slide-in-from-bottom-8 duration-1000">
           <ResultCard title="The Royal Record" text={headlines.royal} icon="📜" />
           <ResultCard title="The Bard's Tale" text={headlines.bard} icon="🎭" />
           <ResultCard title="The Messenger" text={headlines.messenger} icon="🕊️" />
@@ -65,17 +75,24 @@ function App() {
 
 function ResultCard({ title, text, icon }) {
   return (
-    <div className="p-6 border border-sepia/10 bg-white/30 backdrop-blur-sm space-y-4 hover:border-sepia/30 transition-colors group">
-      <div className="flex justify-between items-center">
-        <span className="text-[10px] tracking-widest uppercase text-sepia/60">{title}</span>
-        <span className="opacity-40 group-hover:opacity-100 transition-opacity">{icon}</span>
+    <div className="p-8 border border-sepia/5 bg-white/20 backdrop-blur-md space-y-6 hover:border-sepia/20 transition-all group flex flex-col justify-between">
+      <div className="space-y-4">
+        <div className="flex justify-between items-center border-b border-sepia/10 pb-4">
+          <span className="text-[9px] tracking-widest uppercase text-sepia/50 font-sans">{title}</span>
+          <span className="text-lg opacity-30 group-hover:opacity-100 transition-opacity grayscale group-hover:grayscale-0">{icon}</span>
+        </div>
+        {/* text-lg on mobile, text-2xl for better readability on desktop */}
+        <p className="text-lg md:text-2xl font-serif italic text-ink leading-tight">"{text}"</p>
       </div>
-      <p className="text-xl font-serif italic text-ink leading-snug">"{text}"</p>
+      
       <button 
-        onClick={() => navigator.clipboard.writeText(text)}
-        className="text-[9px] uppercase tracking-tighter text-sepia/40 hover:text-quill transition-colors"
+        onClick={() => {
+            navigator.clipboard.writeText(text);
+            alert("Headline copied to parchment!");
+        }}
+        className="text-[10px] uppercase tracking-tighter text-sepia/40 hover:text-quill transition-colors text-left pt-4"
       >
-        Copy to Parchment
+        Copy to Scroll
       </button>
     </div>
   )
