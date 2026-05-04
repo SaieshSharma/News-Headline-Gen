@@ -126,12 +126,17 @@ function App() {
       </div>
 
       {/* Metadata Footer */}
-      <div className="mt-12 pt-8 border-t border-sepia/10 flex flex-wrap justify-center gap-8 opacity-40 text-[10px] uppercase tracking-widest font-sans">
-        <div>Inference: {headlines.metadata.latency_ms}ms</div>
-        <div>Tokens: {headlines.metadata.input_tokens}</div>
-        <div>Engine: {headlines.metadata.model}</div>
-        <div>Hardware: {headlines.metadata.device.toUpperCase()}</div>
-      </div>
+<div className="mt-12 pt-8 border-t border-sepia/10 flex flex-wrap justify-center gap-8 opacity-40 text-[10px] uppercase tracking-widest font-sans">
+  <div>Inference: {headlines.metadata.latency_ms}ms</div>
+  <div>Hardware: {headlines.metadata.device.toUpperCase()}</div>
+  
+  {/* NEW: Sentiment Tag */}
+  <div className={`font-bold ${headlines.metadata.sentiment === 'POSITIVE' ? 'text-green-600' : 'text-red-600'}`}>
+    Tone: {headlines.metadata.sentiment} ({Math.round(headlines.metadata.score * 100)}%)
+  </div>
+  
+  <div>Model: {headlines.metadata.model}</div>
+</div>
     </div>
   )
 )}

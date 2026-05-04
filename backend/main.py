@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import T5Tokenizer, T5ForConditionalGeneration
+from transformers import T5Tokenizer, T5ForConditionalGeneration, pipeline
 import torch
 
 app = FastAPI()
@@ -29,6 +29,7 @@ else:
 
 tokenizer = T5Tokenizer.from_pretrained(model_source)
 model = T5ForConditionalGeneration.from_pretrained(model_source).to(device)
+sentiment_task = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
 
 class Article(BaseModel):
     text: str
@@ -36,6 +37,8 @@ class Article(BaseModel):
 @app.post("/generate")
 async def generate_headlines(article: Article):
     start_time = time.time()
+
+    sentiment_result = sentiment_task(article.text[:512])[0]
     
     # Task prefixes tell T5 exactly what kind of headline to generate
     # 1. 'headline:' triggers a formal title mode
@@ -89,6 +92,8 @@ async def generate_headlines(article: Article):
             "latency_ms": round((end_time - start_time) * 1000, 2),
             "input_tokens": input_1["input_ids"].shape[1],
             "device": device,
-            "model": "T5-Small (News-Optimized)"
+            "model": "T5-Small (News-Optimized)",
+            "sentiment": sentiment_result["label"],  # e.g., "POSITIVE" or "NEGATIVE"
+            "score": round(sentiment_result["score"], 4)
         }
     }
