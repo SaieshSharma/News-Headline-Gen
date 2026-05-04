@@ -1,5 +1,5 @@
 import { useState } from 'react'
-
+import { jsPDF } from "jspdf";
 function App() {
   const [text, setText] = useState('')
   const [headlines, setHeadlines] = useState(null)
@@ -48,6 +48,61 @@ function App() {
       setLoading(false)
     }
   }
+
+  const exportToPDF = () => {
+  if (!headlines) return;
+
+  const doc = new jsPDF();
+  const date = new Date().toLocaleDateString();
+
+  // Helper to ensure text is capitalized and safe
+  const cap = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+
+  // --- Title & Header ---
+  doc.setFont("serif", "bold");
+  doc.setFontSize(22);
+  doc.text("THE NEWS SCRIBE: DISPATCH", 105, 20, { align: "center" });
+  doc.line(20, 32, 190, 32); 
+
+  // --- Headlines ---
+  // Royal
+  doc.setFontSize(14);
+  doc.setFont("serif", "bold");
+  doc.text("Primary Headline:", 20, 45);
+  doc.setFont("serif", "normal");
+  doc.setFontSize(12);
+  doc.text(doc.splitTextToSize(cap(headlines.results.royal), 170), 20, 52);
+
+  // Bard
+  doc.setFontSize(14);
+  doc.setFont("serif", "bold");
+  doc.text("Detailed Summary:", 20, 80);
+  doc.setFont("serif", "normal");
+  doc.setFontSize(12);
+  doc.text(doc.splitTextToSize(cap(headlines.results.bard), 170), 20, 87);
+
+  // Messenger
+  doc.setFontSize(14);
+  doc.setFont("serif", "bold");
+  doc.text("Breaking Alert:", 20, 115);
+  doc.setFont("serif", "normal");
+  doc.setFontSize(12);
+  doc.text(doc.splitTextToSize(cap(headlines.results.messenger), 170), 20, 122);
+
+  // --- Metadata Footer ---
+  doc.line(20, 145, 190, 145);
+  doc.setFontSize(9);
+  doc.text(`Sentiment: ${headlines.metadata.sentiment} (${Math.round(headlines.metadata.score * 100)}%)`, 20, 153);
+  doc.text(`Inference Latency: ${headlines.metadata.latency_ms}ms`, 20, 159);
+  doc.text(`Hardware: ${headlines.metadata.device.toUpperCase()}`, 20, 165);
+
+  doc.save("News_Scribe_Dispatch.pdf");
+};
+
+const formatHeadline = (str) => {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+};
 
   const ScribeLoader = () => (
   <div className="flex flex-col items-center justify-center space-y-4 py-12">
@@ -108,22 +163,33 @@ function App() {
     <div className="space-y-12 animate-in fade-in duration-1000">
       {/* The 3 Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <ResultCard 
-          title="The Royal Proclamation" 
-          text={headlines.results.royal} 
-          icon="👑" 
-        />
-        <ResultCard 
-          title="The Bard's Song" 
-          text={headlines.results.bard} 
-          icon="📜" 
-        />
-        <ResultCard 
-          title="The Messenger's Dispatch" 
-          text={headlines.results.messenger} 
-          icon="🕊️" 
-        />
+<ResultCard 
+  title="The Royal Proclamation" 
+  text={formatHeadline(headlines.results.royal)} 
+  icon="👑" 
+/>
+<ResultCard 
+  title="The Bard's Song" 
+  text={formatHeadline(headlines.results.bard)} 
+  icon="📜" 
+/>
+<ResultCard 
+  title="The Messenger's Dispatch" 
+  text={formatHeadline(headlines.results.messenger)} 
+  icon="🕊️" 
+/>
       </div>
+
+      {headlines && !loading && (
+  <div className="flex justify-center mt-8">
+    <button
+      onClick={exportToPDF}
+      className="px-8 py-3 border border-quill text-quill hover:bg-quill hover:text-white transition-all text-[10px] uppercase tracking-widest"
+    >
+      📜 Export Dispatch to PDF
+    </button>
+  </div>
+)}
 
       {/* Metadata Footer */}
 <div className="mt-12 pt-8 border-t border-sepia/10 flex flex-wrap justify-center gap-8 opacity-40 text-[10px] uppercase tracking-widest font-sans">
