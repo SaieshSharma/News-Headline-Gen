@@ -5,6 +5,32 @@ function App() {
   const [headlines, setHeadlines] = useState(null)
   const [loading, setLoading] = useState(false)
 
+
+//   const handleTranscribe = async () => {
+//   if (!text) return;
+//   setLoading(true);
+
+//   // MOCK DATA: This simulates the backend perfectly for screenshots
+//   setTimeout(() => {
+//     const mockData = {
+//       results: {
+//         royal: "ISRO Successfully Launches Advanced Communication Satellite for Rural Connectivity",
+//         bard: "India's space agency ISRO achieves a major milestone with its latest satellite launch.",
+//         messenger: "ISRO launches rural broadband satellite."
+//       },
+//       metadata: {
+//         latency_ms: 142.5,
+//         input_tokens: 63,
+//         device: "cpu",
+//         model: "T5-Small (Fine-tuned)"
+//       }
+//     };
+    
+//     setHeadlines(mockData); // This updates your UI as if the backend answered
+//     setLoading(false);
+//   }, 800); // 0.8s delay to show the "Scribe is thinking" state
+// };
+
   const handleTranscribe = async () => {
     if (!text) return
     setLoading(true)
@@ -74,21 +100,44 @@ function App() {
         </div>
       </section>
 
-      {/* Results Section */}
-      {loading ? (
+{/* Results Section */}
+{loading ? (
   <ScribeLoader />
 ) : (
-     headlines && (
-  <div className="mt-12 pt-8 border-t border-sepia/10 flex flex-wrap justify-center gap-8 opacity-40 text-[10px] uppercase tracking-widest font-sans">
-    <div>Inference: {headlines.metadata.latency_ms}ms</div>
-    <div>Tokens: {headlines.metadata.input_tokens}</div>
-    <div>Engine: {headlines.metadata.model}</div>
-    <div>Hardware: {headlines.metadata.device.toUpperCase()}</div>
-  </div>
-))}
+  headlines && (
+    <div className="space-y-12 animate-in fade-in duration-1000">
+      {/* The 3 Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <ResultCard 
+          title="The Royal Proclamation" 
+          text={headlines.results.royal} 
+          icon="👑" 
+        />
+        <ResultCard 
+          title="The Bard's Song" 
+          text={headlines.results.bard} 
+          icon="📜" 
+        />
+        <ResultCard 
+          title="The Messenger's Dispatch" 
+          text={headlines.results.messenger} 
+          icon="🕊️" 
+        />
+      </div>
+
+      {/* Metadata Footer */}
+      <div className="mt-12 pt-8 border-t border-sepia/10 flex flex-wrap justify-center gap-8 opacity-40 text-[10px] uppercase tracking-widest font-sans">
+        <div>Inference: {headlines.metadata.latency_ms}ms</div>
+        <div>Tokens: {headlines.metadata.input_tokens}</div>
+        <div>Engine: {headlines.metadata.model}</div>
+        <div>Hardware: {headlines.metadata.device.toUpperCase()}</div>
+      </div>
     </div>
   )
-}
+)}
+</div> // Closing main div
+  ); // Closing return
+} 
 
 function ResultCard({ title, text, icon }) {
   return (

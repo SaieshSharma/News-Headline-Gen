@@ -8,6 +8,7 @@ import torch
 
 app = FastAPI()
 
+# Enable CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -15,16 +16,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- SMART MODEL LOADER ---
-# This path points to where you will unzip your Colab file
+# --- MODEL LOADING ---
 LOCAL_MODEL_PATH = "./model_weights"
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"
 
 if os.path.exists(LOCAL_MODEL_PATH) and os.listdir(LOCAL_MODEL_PATH):
-    print(f"--- 🏰 Loading your TRAINED scribe model from {LOCAL_MODEL_PATH} ---")
+    print(f"--- 🏰 Loading your TRAINED model from {LOCAL_MODEL_PATH} ---")
     model_source = LOCAL_MODEL_PATH
 else:
-    print("--- 🌐 Local model not found. Using 't5-small' from the cloud temporarily ---")
+    print("--- 🌐 Local model not found. Using 't5-small' cloud weights ---")
     model_source = "t5-small"
 
 tokenizer = T5Tokenizer.from_pretrained(model_source)
@@ -36,34 +36,59 @@ class Article(BaseModel):
 @app.post("/generate")
 async def generate_headlines(article: Article):
     start_time = time.time()
-    # Professional standard: Add the task prefix
-    input_text = "summarize: " + article.text
-    inputs = tokenizer(input_text, return_tensors="pt", truncation=True, max_length=512).to(device)
-    input_token_count = inputs["input_ids"].shape[1] # Count the tokens
+    
+    # Task prefixes tell T5 exactly what kind of headline to generate
+    # 1. 'headline:' triggers a formal title mode
+    # 2. 'summarize:' triggers a descriptive overview
+    # 3. 'tldr:' triggers a punchy, short alert
+    prompts = {
+        "royal": "headline: ", 
+        "bard": "summarize: ", 
+        "messenger": "tldr: "
+    }
 
+    results = {}
     with torch.no_grad():
-        # Using 3 different decoding strategies to give the user variety
-        # 1. Conservative
-        out1 = model.generate(inputs["input_ids"], num_beams=4, max_length=25)
-        # 2. Creative
-        out2 = model.generate(inputs["input_ids"], do_sample=True, temperature=0.9, top_p=0.95, max_length=25)
-        # 3. Concise
-        out3 = model.generate(inputs["input_ids"], length_penalty=0.5, max_length=15)
+        # --- 1. PRIMARY FORMAL HEADLINE ---
+        input_1 = tokenizer(prompts["royal"] + article.text, return_tensors="pt", truncation=True, max_length=512).to(device)
+        out1 = model.generate(
+            input_1["input_ids"], 
+            num_beams=5, 
+            max_length=40, 
+            min_length=10, 
+            early_stopping=True
+        )
+        results["royal"] = tokenizer.decode(out1[0], skip_special_tokens=True)
 
+        # --- 2. DETAILED/DESCRIPTIVE HEADLINE ---
+        input_2 = tokenizer(prompts["bard"] + article.text, return_tensors="pt", truncation=True, max_length=512).to(device)
+        out2 = model.generate(
+            input_2["input_ids"], 
+            do_sample=True, 
+            temperature=0.7, 
+            max_length=60, 
+            top_p=0.9
+        )
+        results["bard"] = tokenizer.decode(out2[0], skip_special_tokens=True)
 
-        end_time = time.time()
-        latency = round((end_time - start_time) * 1000, 2) # Convert to ms
+        # --- 3. SHORT BREAKING NEWS ALERT ---
+        input_3 = tokenizer(prompts["messenger"] + article.text, return_tensors="pt", truncation=True, max_length=512).to(device)
+        out3 = model.generate(
+            input_3["input_ids"], 
+            max_length=20, 
+            length_penalty=2.5, 
+            num_beams=2
+        )
+        results["messenger"] = tokenizer.decode(out3[0], skip_special_tokens=True)
+
+    end_time = time.time()
     
     return {
-"results": {
-            "royal": tokenizer.decode(out1[0], skip_special_tokens=True),
-            "bard": tokenizer.decode(out2[0], skip_special_tokens=True),
-            "messenger": tokenizer.decode(out3[0], skip_special_tokens=True)
-        },
+        "results": results,
         "metadata": {
-            "latency_ms": latency,
-            "input_tokens": input_token_count,
+            "latency_ms": round((end_time - start_time) * 1000, 2),
+            "input_tokens": input_1["input_ids"].shape[1],
             "device": device,
-            "model": "T5-Small (Fine-tuned)"
+            "model": "T5-Small (News-Optimized)"
         }
     }
