@@ -1,6 +1,9 @@
 fastapi
-uvicorn
+uvicorn[standard]
 transformers
 torch
 pydantic
 python-multipart
+sentencepiece
+safetensors
+accelerate

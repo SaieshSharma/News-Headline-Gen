@@ -1,6 +1,7 @@
 {
-  "name": "frontend",
+  "name": "news-scribe-frontend",
   "private": true,
+  "description": "NewsScribe — AI News Summarization & Sentiment Analysis frontend",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
