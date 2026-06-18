@@ -27,9 +27,16 @@ else:
     print("--- 🌐 Local model not found. Using 't5-small' cloud weights ---")
     model_source = "t5-small"
 
+print("Loading T5 model...")
 tokenizer = T5Tokenizer.from_pretrained(model_source)
 model = T5ForConditionalGeneration.from_pretrained(model_source).to(device)
-sentiment_task = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english")
+print("T5 model loaded.")
+print("Loading sentiment model...")
+sentiment_task = pipeline(
+    "sentiment-analysis",
+    model="./sentiment_model"
+)
+print("Sentiment model loaded.")
 print("MODEL SOURCE:", model.config._name_or_path)
 class Article(BaseModel):
     text: str
@@ -59,10 +66,12 @@ async def generate_summary(article: Article):
 
         output = model.generate(
             inputs["input_ids"],
-            num_beams=5,
-            max_length=40,
-            min_length=10,
-            early_stopping=True
+            num_beams=4,
+            max_new_tokens=80,
+            min_new_tokens=15,
+            early_stopping=True,
+            no_repeat_ngram_size=3,
+            length_penalty=1.0
         )
 
         summary = tokenizer.decode(

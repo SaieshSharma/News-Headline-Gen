@@ -1,9 +1,8 @@
 fastapi
 uvicorn[standard]
 transformers
-torch
+torch==2.11.0+cpu
 pydantic
 python-multipart
 sentencepiece
 safetensors
-accelerate

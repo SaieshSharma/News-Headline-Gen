@@ -5,6 +5,7 @@ venv/
 
 # Models (Too large for Git)
 model_weights/
+sentiment_model/
 *.zip
 *.bin
 *.pth
