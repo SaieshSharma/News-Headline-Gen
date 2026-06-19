@@ -35,12 +35,16 @@ jobs:
             # Pull down the freshly baked app image from DockerHub
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/newsscribe-backend:latest
             
-            # Find and forcefully terminate any running container currently occupying port 8000
+            # 1. Clear out any container holding port 8000
             echo "Clearing out existing port 8000 holders..."
             docker rm -f $(docker ps -q --filter "publish=8000") || true
             
-            # Spin up the new application container layer
-            # Notice the -v mounts: We leave the model weights completely cached on the EC2 host disk!
+            # 2. Clear out any dead container hogging our target name
+            echo "Clearing out any name conflicts..."
+            docker rm -f newsscribe-backend-inst || true
+            
+            # 3. Spin up the new application container layer
+            echo "Launching updated NewsScribe container..."
             docker run -d \
               --name newsscribe-backend-inst \
               -p 8000:8000 \
@@ -48,3 +52,8 @@ jobs:
               -v /home/ubuntu/sentiment_model:/app/sentiment_model \
               --restart unless-stopped \
               ${{ secrets.DOCKERHUB_USERNAME }}/newsscribe-backend:latest
+
+            # 4. Garbage Collection (Edge Case Fix)
+            # Forcefully purge unused dangling images and build caches to keep EC2 storage free
+            echo "Purging stale infrastructure image layers..."
+            docker image prune -a -f
