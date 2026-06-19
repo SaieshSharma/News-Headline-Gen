@@ -6,10 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import T5Tokenizer, T5ForConditionalGeneration, pipeline
 from newspaper import Article as NewsArticle
+from newspaper import Configuration as NewsConfig
 import nltk
 
 # --- NLTK RUNTIME INITIALIZATION LAYER ---
-# Ensure NLTK has a safe, writable directory inside the Docker container layout
 nltk_data_dir = "/app/nltk_data"
 os.makedirs(nltk_data_dir, exist_ok=True)
 nltk.data.path.append(nltk_data_dir)
@@ -26,7 +26,6 @@ except LookupError:
 
 app = FastAPI()
 
-# Enable CORS for React frontend (Vercel)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -66,10 +65,8 @@ class ScrapeRequest(BaseModel):
 
 # --- CORE UTILITY WORKFLOWS ---
 def run_pipeline_inference(raw_text: str):
-    """Encapsulates the core analytical execution layer for both workflows."""
     start_time = time.time()
     
-    # Safe guard truncation for basic sentiment input layer
     sentiment_result = sentiment_task(raw_text[:512])[0]
 
     with torch.no_grad():
@@ -124,21 +121,24 @@ async def scrape_and_summarize(payload: ScrapeRequest):
         raise HTTPException(status_code=400, detail="Invalid global URI scheme detected.")
 
     try:
-        # Newspaper4k handles downloading, user-agent masking, and HTML cleaning out of the box
-        article = NewsArticle(target_url)
+        # Founder Architecture Patch: Inject desktop browser headers to bypass news anti-bot walls
+        config = NewsConfig()
+        config.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        config.request_timeout = 10
+        
+        article = NewsArticle(target_url, config=config)
         article.download()
         article.parse()
         
         extracted_text = article.text.strip()
 
         if len(extracted_text) < 150:
-            raise HTTPException(status_code=400, detail="Extracted text density too low. The domain might be behind a hard paywall.")
+            raise HTTPException(status_code=400, detail="Extracted text density too low. Content may be guarded by a strict script paywall.")
 
-        # Truncate string gracefully to protect deep learning memory context bounds
         sanitized_input = extracted_text[:4500]
-        
-        # Pass variables cleanly down into your existing inference loop function
         return run_pipeline_inference(sanitized_input)
         
+    except HTTPException as http_err:
+        raise http_err
     except Exception as general_err:
-        raise HTTPException(status_code=500, detail=f"Internal extraction processing failure: {str(general_err)}")
+        raise HTTPException(status_code=500, detail=f"Data parser processing failure: {str(general_err)}")

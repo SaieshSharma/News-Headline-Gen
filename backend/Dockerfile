@@ -4,8 +4,10 @@ WORKDIR /app
 
 COPY requirements.txt .
 
+# Enforce pure CPU package distribution mappings explicitly
 RUN pip install --no-cache-dir \
-    --extra-index-url https://download.pytorch.org/whl/cpu \
+    --index-url https://download.pytorch.org/whl/cpu \
+    --extra-index-url https://pypi.org/simple \
     -r requirements.txt
 
 COPY . .
