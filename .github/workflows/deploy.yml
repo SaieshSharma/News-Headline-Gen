@@ -20,7 +20,7 @@ jobs:
       - name: Build and Push Light App Image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./backend
           file: ./backend/Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/newsscribe-backend:latest
