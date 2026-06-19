@@ -11,5 +11,5 @@ sentencepiece==0.2.0
 safetensors==0.4.2
 newspaper4k==0.9.5
 lxml-html-clean==0.1.1
-nltk==3.8.1
+nltk==3.9.1
 numpy<2.0.0
