@@ -4,21 +4,24 @@ import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import T5Tokenizer, T5ForConditionalGeneration, pipeline
+from transformers import AutoTokenizer, T5ForConditionalGeneration, pipeline
 from newspaper import Article as NewsArticle
 from newspaper import Config as NewsConfig
 import nltk
 
+# --- NLTK RUNTIME INITIALIZATION LAYER ---
 nltk_data_dir = "/app/nltk_data"
 os.makedirs(nltk_data_dir, exist_ok=True)
 nltk.data.path.clear()
 nltk.data.path.append(nltk_data_dir)
 
+# Download BOTH models to satisfy both modern pipelines and newspaper4k dependencies
 try:
+    nltk.download('punkt', download_dir=nltk_data_dir, quiet=True)
     nltk.download('punkt_tab', download_dir=nltk_data_dir, quiet=True)
 except Exception as nltk_err:
     print(f"NLTK Initialization alert: {str(nltk_err)}")
-    
+
 app = FastAPI()
 
 app.add_middleware(
@@ -37,7 +40,7 @@ FINETUNED_SENTIMENT_HUB = "SaieshSharma/newsscribe-sentiment"
 print("Initializing models from Hugging Face Registry Hub...")
 
 # Load your custom fine-tuned T5 Summarizer engine
-tokenizer = T5Tokenizer.from_pretrained(FINETUNED_T5_HUB)
+tokenizer = AutoTokenizer.from_pretrained(FINETUNED_T5_HUB)
 model = T5ForConditionalGeneration.from_pretrained(FINETUNED_T5_HUB).to(device)
 print("🏰 Fine-tuned T5 core matrix engine loaded successfully.")
 
