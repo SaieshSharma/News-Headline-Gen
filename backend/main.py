@@ -1,13 +1,28 @@
 import time
 import os
 import torch
-import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from transformers import T5Tokenizer, T5ForConditionalGeneration, pipeline
-from bs4 import BeautifulSoup
 from newspaper import Article as NewsArticle
+import nltk
+
+# --- NLTK RUNTIME INITIALIZATION LAYER ---
+# Ensure NLTK has a safe, writable directory inside the Docker container layout
+nltk_data_dir = "/app/nltk_data"
+os.makedirs(nltk_data_dir, exist_ok=True)
+nltk.data.path.append(nltk_data_dir)
+
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt', download_dir=nltk_data_dir)
+
+try:
+    nltk.data.find('tokenizers/punkt_tab')
+except LookupError:
+    nltk.download('punkt_tab', download_dir=nltk_data_dir)
 
 app = FastAPI()
 
@@ -125,37 +140,5 @@ async def scrape_and_summarize(payload: ScrapeRequest):
         # Pass variables cleanly down into your existing inference loop function
         return run_pipeline_inference(sanitized_input)
         
-    except Exception as general_err:
-        raise HTTPException(status_code=500, detail=f"Internal extraction processing failure: {str(general_err)}")
-    target_url = payload.url.strip()
-    if not target_url.startswith(("http://", "https://")):
-        raise HTTPException(status_code=400, detail="Invalid global URI scheme detected.")
-
-    try:
-        async with httpx.AsyncClient() as client:
-            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NewsScribe/2.0"}
-            response = await client.get(target_url, headers=headers, timeout=12.0)
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=400, detail=f"Source server returned validation status: {response.status_code}")
-
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Deconstruct unneeded HTML trees
-        for junk in soup(["script", "style", "nav", "footer", "header", "aside"]):
-            junk.decompose()
-
-        # Capture text paragraphs
-        paragraphs = soup.find_all('p')
-        extracted_text = " ".join([p.get_text() for p in paragraphs]).strip()
-
-        if len(extracted_text) < 150:
-            raise HTTPException(status_code=400, detail="Extracted body element content density too low to yield a robust summary.")
-
-        # Cap token input length gracefully to preserve CPU memory
-        return run_pipeline_inference(extracted_text[:4500])
-
-    except httpx.RequestError as net_err:
-        raise HTTPException(status_code=500, detail=f"Network gateway transport failure: {str(net_err)}")
     except Exception as general_err:
         raise HTTPException(status_code=500, detail=f"Internal extraction processing failure: {str(general_err)}")
