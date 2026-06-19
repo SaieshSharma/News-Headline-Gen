@@ -1,59 +1,56 @@
-# 📜 NewsScribe
+# NewsScribe
 
-### 🖋️ Executive Summary
-**NewsScribe** is an AI-powered application for news summarization and sentiment analysis. It converts long-form news articles into concise summaries and provides sentiment scoring to help editors gauge tone. The frontend delivers a modern interface for submitting articles and viewing summarized outputs with sentiment metadata.
+A full-stack AI news aggregator that extracts web articles and generates abstractive headlines with a fine-tuned T5 model.
 
----
+Live frontend: https://newsscribe.saieshsharma.me
 
-### 🧠 The Intelligence (Model & Training)
-* **Base Architecture:** `t5-small` (Encoder-Decoder Transformer)
-* **Dataset:** 10% slice (~28,000 samples) of the **CNN/DailyMail** dataset.
-* **Training Strategy:**
-    * Fine-tuned for 3 epochs on a T4 GPU.
-    * 90/10 Train-Validation split for robust generalization.
-    * **Mixed Precision (FP16)** utilized to optimize training throughput.
-* **Performance Metrics:**
-    * **ROUGE-1:** ~0.25 (Measuring unigram overlap).
-    * **ROUGE-L:** ~0.20 (Ensuring structural and sequential consistency).
+Live backend API: https://api.saieshsharma.me
 
----
+## Architecture
 
-### 🛠️ The Tech Stack
-* **Backend:** FastAPI (Python) - High-performance, asynchronous inference.
-* **Frontend:** Vite + React (JavaScript) - Modern, fast, and responsive.
-* **Styling:** Tailwind CSS v4 - Utilizing a "Medieval-Minimal" design system.
-* **Inference Engine:** PyTorch + Hugging Face Transformers.
-
----
-
-### ⚙️ Decoding Strategies (The "Voices")
-To provide utility to the end-user, the backend implements three distinct decoding logic gates:
-
-| Voice | Strategy | Technical Reasoning |
-| :--- | :--- | :--- |
-| **The Royal Record** | **Beam Search** | Explores multiple paths to find the mathematically highest probability sequence. Reliable and formal. |
-| **The Bard's Tale** | **Top-P Sampling** | Nucleus sampling ($p=0.95$) + Temperature ($0.9$) to allow for creative word choices and higher entropy. |
-| **The Messenger** | **Length Penalty** | Applied length penalty ($0.5$) to force the model toward extreme brevity for "breaking news" style alerts. |
-
----
-
-### 📊 Observability (The Technical Ledger)
-The application features a built-in **Metadata Ledger** for real-time performance monitoring:
-* **Inference Latency:** Measured in milliseconds ($ms$).
-* **Token Count:** Displays the complexity of the input article.
-* **Hardware Tracking:** Detects if the engine is running on **CUDA** (RTX 3050) or **CPU**.
-
----
-
-### 📁 Project Structure
 ```text
-news-scribe/
-├── backend/                 # FastAPI Logic
-│   ├── model_weights/       # Local Fine-tuned Weights (.bin, .json)
-│   └── main.py              # Inference Server
-├── frontend/                # Vite + React Source
-│   ├── src/                 # UI Components
-│   └── index.css            # Tailwind v4 Theme
-├── notebooks/               # Research & Training
-│   └── headline_gen.ipynb   # Colab Training History
-└── README.md
+[ Next.js Client via Vercel ]
+               |
+               v
+( Port 443 HTTPS )
+               |
+               v
+[ Nginx Reverse Proxy & Rate Limiter on AWS EC2 ]
+               |
+               v
+( Internal Port Mapping )
+               |
+               v
+[ Docker Container running Python FastAPI Engine + T5 Model ]
+```
+
+## Tech Stack
+
+- Frontend: Next.js, React, TypeScript
+- Backend application layer: Python, FastAPI
+- Machine learning: HuggingFace Transformers, PyTorch, fine-tuned T5 model weights
+- DevOps and cloud: Docker, AWS EC2, Nginx, Certbot (Let's Encrypt SSL)
+
+## Production Hardening Features
+
+- Nginx terminates public traffic on port 443 and forwards requests to the internal FastAPI service at `http://127.0.0.1:8000`.
+- Let's Encrypt certificates are handled through Certbot so HTTPS stays in place without manual renewal work.
+- The reverse proxy also avoids browser-side CORS and mixed-content failures by presenting a single secure public origin.
+- Rate limiting is defined in `nginx.conf` with `limit_req_zone $binary_remote_addr zone=api_limit:10m rate=5r/s` and enforced with `limit_req zone=api_limit burst=10 nodelay` to keep bot traffic from exhausting the model process.
+- The FastAPI container uses `--restart unless-stopped` so the service comes back after an unexpected EC2 host reboot.
+
+## Local Development Setup
+
+```bash
+# Build the backend Docker image
+cd backend
+docker build -t newsscribe-backend .
+
+# Run the backend on port 8000
+docker run -d --name newsscribe-backend --restart unless-stopped -p 8000:8000 newsscribe-backend
+
+# Start the frontend dev environment
+cd ../frontend
+npm install
+npm run dev
+```
