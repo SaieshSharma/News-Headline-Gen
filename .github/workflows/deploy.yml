@@ -35,9 +35,9 @@ jobs:
             # Pull down the freshly baked app image from DockerHub
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/newsscribe-backend:latest
             
-            # Stop the running container smoothly
-            docker stop newsscribe-backend-inst || true
-            docker rm newsscribe-backend-inst || true
+            # Find and forcefully terminate any running container currently occupying port 8000
+            echo "Clearing out existing port 8000 holders..."
+            docker rm -f $(docker ps -q --filter "publish=8000") || true
             
             # Spin up the new application container layer
             # Notice the -v mounts: We leave the model weights completely cached on the EC2 host disk!
