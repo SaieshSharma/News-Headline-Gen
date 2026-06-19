@@ -10,20 +10,17 @@ from newspaper import Config as NewsConfig
 import nltk
 
 # --- NLTK RUNTIME INITIALIZATION LAYER ---
+
 nltk_data_dir = "/app/nltk_data"
 os.makedirs(nltk_data_dir, exist_ok=True)
+nltk.data.path.clear()  # Prevent path pollution inside Docker
 nltk.data.path.append(nltk_data_dir)
 
 try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', download_dir=nltk_data_dir)
-
-try:
-    nltk.data.find('tokenizers/punkt_tab')
-except LookupError:
-    nltk.download('punkt_tab', download_dir=nltk_data_dir)
-
+    nltk.download('punkt', download_dir=nltk_data_dir, quiet=True)
+    nltk.download('punkt_tab', download_dir=nltk_data_dir, quiet=True)
+except Exception as nltk_err:
+    print(f"Non-fatal NLTK mapping warning: {str(nltk_err)}")
 app = FastAPI()
 
 app.add_middleware(
