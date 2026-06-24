@@ -7,8 +7,10 @@ from pydantic import BaseModel
 from transformers import T5Tokenizer, T5ForConditionalGeneration, AutoModelForSequenceClassification, AutoTokenizer
 from newspaper import Article as NewsArticle
 from newspaper import Config as NewsConfig
+from bs4 import BeautifulSoup
 import nltk
 
+# Point NLTK strictly to the internal baked-in folder
 nltk.data.path = ["/app/nltk_data"]
 
 app = FastAPI()
@@ -22,12 +24,15 @@ app.add_middleware(
 
 device = "cpu"
 
+# Mapped absolute storage directory constants
 MODEL_DIR = "/app/model_weights"
 SENTIMENT_DIR = "/app/sentiment_model"
 
+# --- THE ABSOLUTE PROTOCOL FIX FOR T5 ---
 tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-base")
 model = T5ForConditionalGeneration.from_pretrained(MODEL_DIR)
 
+# --- BULLETPROOF SENTIMENT INITIALIZATION ---
 sentiment_tokenizer = AutoTokenizer.from_pretrained(SENTIMENT_DIR)
 sentiment_model = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_DIR)
 
@@ -40,6 +45,7 @@ class ScrapeRequest(BaseModel):
 def run_pipeline_inference(raw_text: str):
     start_time = time.time()
     
+    # MANUAL EXTRACTOR FOR DISTILBERT (Bypasses pipeline arg overflow entirely)
     truncated_input_text = raw_text[:512]
     sentiment_inputs = sentiment_tokenizer(
         truncated_input_text,
@@ -47,9 +53,11 @@ def run_pipeline_inference(raw_text: str):
         truncation=True,
         max_length=512
     )
+    # Explicitly clear out token_type_ids before handing dict down to model layers
     sentiment_inputs.pop("token_type_ids", None)
 
     with torch.no_grad():
+        # Raw tensor execution mapping
         sentiment_outputs = sentiment_model(**sentiment_inputs)
         probabilities = torch.nn.functional.softmax(sentiment_outputs.logits, dim=-1)[0]
         prediction_index = torch.argmax(probabilities).item()
@@ -57,6 +65,7 @@ def run_pipeline_inference(raw_text: str):
         sentiment_label = sentiment_model.config.id2label[prediction_index]
         sentiment_score = probabilities[prediction_index].item()
 
+        # RUN INFERENCE FOR T5 SUMMARIZER
         inputs = tokenizer("summarize: " + raw_text, return_tensors="pt", truncation=True, max_length=512).to(device)
         output = model.generate(
             inputs["input_ids"], 
@@ -98,14 +107,44 @@ async def scrape_and_summarize(payload: ScrapeRequest):
         raise HTTPException(status_code=400, detail="Invalid URI.")
     try:
         config = NewsConfig()
-        config.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        config.request_timeout = 10
+        config.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        config.request_timeout = 15
+        
         article = NewsArticle(target_url, config=config)
         article.download()
         article.parse()
+        
         extracted_text = article.text.strip()
+        
+        # --- BULLETPROOF SEMANTIC CLEANING LAYER ---
+        # Detect if the parsed content is empty, short, or junk author data
+        bad_phrases = ["covered South Asia", "written by", "subscriber only", "follow us on"]
+        is_junk = any(phrase in extracted_text for phrase in bad_phrases)
+        
+        if is_junk or len(extracted_text) < 400:
+            soup = BeautifulSoup(article.html, "html.parser")
+            
+            # 1. Stripping out scripts, footers, headers, and known author bio boxes
+            for element in soup(["script", "style", "nav", "header", "footer", "aside"]):
+                element.extract()
+                
+            # 2. Target standard core news structural container elements
+            paragraphs = soup.find_all("p")
+            valid_blocks = []
+            
+            for p in paragraphs:
+                p_text = p.get_text().strip()
+                # Extract text chunks that look like genuine news text density
+                if len(p_text) > 50 and not any(phrase in p_text for phrase in bad_phrases):
+                    valid_blocks.append(p_text)
+                    
+            if valid_blocks:
+                extracted_text = " ".join(valid_blocks)
+
         if len(extracted_text) < 150: 
-            raise HTTPException(status_code=400, detail="Text density too low.")
+            raise HTTPException(status_code=400, detail="Unable to safely parse main news body from this layout.")
+            
         return run_pipeline_inference(extracted_text[:4500])
+        
     except Exception as err: 
         raise HTTPException(status_code=500, detail=str(err))
