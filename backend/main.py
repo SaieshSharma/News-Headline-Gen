@@ -4,8 +4,8 @@ import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-# Explicitly importing PreTrainedTokenizerFast alongside the classic loaders
-from transformers import AutoTokenizer, T5ForConditionalGeneration, AutoModelForSequenceClassification, PreTrainedTokenizerFast, pipeline
+# Using T5Tokenizer to completely dodge the broken local Rust JSON parser
+from transformers import T5Tokenizer, T5ForConditionalGeneration, AutoModelForSequenceClassification, AutoTokenizer, pipeline
 from newspaper import Article as NewsArticle
 from newspaper import Config as NewsConfig
 import nltk
@@ -24,31 +24,26 @@ app.add_middleware(
 
 device = "cpu"
 
-# Standardizing absolute paths mapped inside the docker context
+# Mapped absolute storage directory constants
 MODEL_DIR = "/app/model_weights"
 SENTIMENT_DIR = "/app/sentiment_model"
 
-# --- BULLETPROOF TOKENIZER INITIALIZATION ENGINE ---
-# This forces the engine to parse tokenizer.json directly as a file string, 
-# completely bypassing the missing spiece.model loop and enum validation discrepancies.
-tokenizer = PreTrainedTokenizerFast(
-    tokenizer_file=os.path.join(MODEL_DIR, "tokenizer.json"),
-    eos_token="</s>",
-    unk_token="<unk>",
-    pad_token="<pad>"
-)
+# --- THE ABSOLUTE PROTOCOL FIX ---
+# We download the pristine, matching t5-base tokenizer matrix directly from the web core.
+# This entirely side-steps your disk's broken tokenizer.json file and prevents the Rust enum crash.
+tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-base")
 model = T5ForConditionalGeneration.from_pretrained(MODEL_DIR)
 
-# Loading your DistilBERT sentiment model from the disk assets
+# Loading your locally stored DistilBERT sentiment matrices from EBS storage
 sentiment_tokenizer = AutoTokenizer.from_pretrained(SENTIMENT_DIR)
 sentiment_model = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_DIR)
 
-# Mapping the pipeline execution context safely to the clean string constant
+# Initializing your execution pipeline
 sentiment_task = pipeline(
     "sentiment-analysis",
     model=sentiment_model,
     tokenizer=sentiment_tokenizer,
-    device=-1  # Standard notation for forced CPU processing context
+    device=-1
 )
 
 class Article(BaseModel):
