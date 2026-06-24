@@ -4,7 +4,8 @@ import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import AutoTokenizer, T5Tokenizer, T5ForConditionalGeneration, AutoModelForSequenceClassification, pipeline, T5TokenizerFast
+# Explicitly importing PreTrainedTokenizerFast alongside the classic loaders
+from transformers import AutoTokenizer, T5ForConditionalGeneration, AutoModelForSequenceClassification, PreTrainedTokenizerFast, pipeline
 from newspaper import Article as NewsArticle
 from newspaper import Config as NewsConfig
 import nltk
@@ -27,19 +28,27 @@ device = "cpu"
 MODEL_DIR = "/app/model_weights"
 SENTIMENT_DIR = "/app/sentiment_model"
 
-# Corrected path references to match variables perfectly
-tokenizer = T5TokenizerFast.from_pretrained(MODEL_DIR, from_slow=True)
+# --- BULLETPROOF TOKENIZER INITIALIZATION ENGINE ---
+# This forces the engine to parse tokenizer.json directly as a file string, 
+# completely bypassing the missing spiece.model loop and enum validation discrepancies.
+tokenizer = PreTrainedTokenizerFast(
+    tokenizer_file=os.path.join(MODEL_DIR, "tokenizer.json"),
+    eos_token="</s>",
+    unk_token="<unk>",
+    pad_token="<pad>"
+)
 model = T5ForConditionalGeneration.from_pretrained(MODEL_DIR)
 
+# Loading your DistilBERT sentiment model from the disk assets
 sentiment_tokenizer = AutoTokenizer.from_pretrained(SENTIMENT_DIR)
 sentiment_model = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_DIR)
 
-# Explicitly instantiating the missing sentiment analysis task pipeline
+# Mapping the pipeline execution context safely to the clean string constant
 sentiment_task = pipeline(
     "sentiment-analysis",
     model=sentiment_model,
     tokenizer=sentiment_tokenizer,
-    device=-1 # Forces CPU inference allocation
+    device=-1  # Standard notation for forced CPU processing context
 )
 
 class Article(BaseModel):
