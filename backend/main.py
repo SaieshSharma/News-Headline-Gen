@@ -29,7 +29,7 @@ MODEL_DIR = "/app/model_weights"
 SENTIMENT_DIR = "/app/sentiment_model"
 
 # Corrected path references to match variables perfectly
-tokenizer = T5Tokenizer.from_pretrained(MODEL_DIR)
+tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
 model = T5ForConditionalGeneration.from_pretrained(MODEL_DIR)
 
 sentiment_tokenizer = AutoTokenizer.from_pretrained(SENTIMENT_DIR)
