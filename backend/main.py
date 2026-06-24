@@ -4,12 +4,11 @@ import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from transformers import T5Tokenizer, T5ForConditionalGeneration, AutoModelForSequenceClassification, AutoTokenizer, pipeline
+from transformers import T5Tokenizer, T5ForConditionalGeneration, AutoModelForSequenceClassification, AutoTokenizer
 from newspaper import Article as NewsArticle
 from newspaper import Config as NewsConfig
 import nltk
 
-# internal folder
 nltk.data.path = ["/app/nltk_data"]
 
 app = FastAPI()
@@ -23,26 +22,14 @@ app.add_middleware(
 
 device = "cpu"
 
-# Mapped absolute storage directory constants
 MODEL_DIR = "/app/model_weights"
 SENTIMENT_DIR = "/app/sentiment_model"
 
-# Fetches the original, pristine t5-base vocabulary map over the network on boot,
-# completely bypassing the broken local tokenizer.json structural validation crash.
 tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-base")
 model = T5ForConditionalGeneration.from_pretrained(MODEL_DIR)
 
-# Loading DistilBERT explicitly from its native local storage array on EBS
 sentiment_tokenizer = AutoTokenizer.from_pretrained(SENTIMENT_DIR)
 sentiment_model = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_DIR)
-
-# Initializing the engine pipeline with explicit parameter restrictions to guard against global namespace overflow
-sentiment_task = pipeline(
-    "sentiment-analysis",
-    model=sentiment_model,
-    tokenizer=sentiment_tokenizer,
-    device=-1
-)
 
 class Article(BaseModel):
     text: str
@@ -53,14 +40,23 @@ class ScrapeRequest(BaseModel):
 def run_pipeline_inference(raw_text: str):
     start_time = time.time()
     
-    # Securely slice text and force pipeline parameters to drop token_type_ids explicitly
     truncated_input_text = raw_text[:512]
-    sentiment_result = sentiment_task(
+    sentiment_inputs = sentiment_tokenizer(
         truncated_input_text,
-        token_type_ids=False  # Absolute guard ensuring DistilBERT does not receive unaccepted parameters
-    )[0]
+        return_tensors="pt",
+        truncation=True,
+        max_length=512
+    )
+    sentiment_inputs.pop("token_type_ids", None)
 
     with torch.no_grad():
+        sentiment_outputs = sentiment_model(**sentiment_inputs)
+        probabilities = torch.nn.functional.softmax(sentiment_outputs.logits, dim=-1)[0]
+        prediction_index = torch.argmax(probabilities).item()
+        
+        sentiment_label = sentiment_model.config.id2label[prediction_index]
+        sentiment_score = probabilities[prediction_index].item()
+
         inputs = tokenizer("summarize: " + raw_text, return_tensors="pt", truncation=True, max_length=512).to(device)
         output = model.generate(
             inputs["input_ids"], 
@@ -80,8 +76,8 @@ def run_pipeline_inference(raw_text: str):
             "latency_ms": round((end_time - start_time) * 1000, 2),
             "input_tokens": inputs["input_ids"].shape[1],
             "device": device,
-            "sentiment": sentiment_result["label"],
-            "score": round(sentiment_result["score"], 4)
+            "sentiment": sentiment_label,
+            "score": round(sentiment_score, 4)
         }
     }
 
