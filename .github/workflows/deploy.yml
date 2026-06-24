@@ -5,8 +5,8 @@ on:
     branches: [ main ]
     paths:
       - 'backend/**'
-      - '.github/workflows/deploy.yml'
-      
+      - '.github/workflows/**' # Automatically catches any workflow file iteration changes
+
 jobs:
   build-and-ship:
     runs-on: ubuntu-latest
@@ -30,13 +30,17 @@ jobs:
 
       - name: Execute Live Remote Server Swap via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          # Injecting the secret as a clean, lowercase-safe environment string safely bridged into the shell scope
+          DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
         with:
           host: ${{ secrets.AWS_HOST }}
           username: ubuntu
           key: ${{ secrets.AWS_PRIVATE_KEY }}
+          envs: DOCKER_USER # Expressly tells appleboy to pass this local variable over to the EC2 server session
           script: |
-            # Pull down the freshly baked app image from DockerHub
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/newsscribe-backend:latest
+            # Pull down the freshly baked app image from DockerHub using the env variable
+            docker pull $DOCKER_USER/newsscribe-backend:latest
             
             # 1. Clear out any container holding port 8000
             echo "Clearing out existing port 8000 holders..."
@@ -46,17 +50,16 @@ jobs:
             echo "Clearing out any name conflicts..."
             docker rm -f newsscribe-backend-inst || true
             
-            # 3. Spin up the new application container layer
-            echo "Launching updated NewsScribe container..."
+            # 3. Spin up the new application container layer mapping host-persistent ML weights
+            echo "Launching updated NewsScribe container with volume attachments..."
             docker run -d \
               --name newsscribe-backend-inst \
               -p 8000:8000 \
               -v /home/ubuntu/model_weights:/app/model_weights \
               -v /home/ubuntu/sentiment_model:/app/sentiment_model \
               --restart unless-stopped \
-              ${{ secrets.DOCKERHUB_USERNAME }}/newsscribe-backend:latest
+              $DOCKER_USER/newsscribe-backend:latest
 
-            # 4. Garbage Collection (Edge Case Fix)
-            # Forcefully purge unused dangling images and build caches to keep EC2 storage free
+            # 4. Garbage Collection (Aggressive disk hygiene layer)
             echo "Purging stale infrastructure image layers..."
             docker image prune -a -f
