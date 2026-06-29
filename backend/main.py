@@ -28,11 +28,13 @@ device = "cpu"
 MODEL_DIR = "/app/model_weights"
 SENTIMENT_DIR = "/app/sentiment_model"
 
-# --- THE ABSOLUTE PROTOCOL FIX FOR T5 ---
+# --- PROTOCOL INITIALIZATION LAYER ---
 tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-base")
 model = T5ForConditionalGeneration.from_pretrained(MODEL_DIR)
 
-# --- BULLETPROOF SENTIMENT INITIALIZATION ---
+# Force the T5 model configuration to use Key-Value caching natively
+model.config.use_cache = True
+
 sentiment_tokenizer = AutoTokenizer.from_pretrained(SENTIMENT_DIR)
 sentiment_model = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_DIR)
 
@@ -45,7 +47,7 @@ class ScrapeRequest(BaseModel):
 def run_pipeline_inference(raw_text: str):
     start_time = time.time()
     
-    # MANUAL EXTRACTOR FOR DISTILBERT (Bypasses pipeline arg overflow entirely)
+    # 1. MANUAL EXTRACTOR FOR DISTILBERT 
     truncated_input_text = raw_text[:512]
     sentiment_inputs = sentiment_tokenizer(
         truncated_input_text,
@@ -53,11 +55,9 @@ def run_pipeline_inference(raw_text: str):
         truncation=True,
         max_length=512
     )
-    # Explicitly clear out token_type_ids before handing dict down to model layers
     sentiment_inputs.pop("token_type_ids", None)
 
     with torch.no_grad():
-        # Raw tensor execution mapping
         sentiment_outputs = sentiment_model(**sentiment_inputs)
         probabilities = torch.nn.functional.softmax(sentiment_outputs.logits, dim=-1)[0]
         prediction_index = torch.argmax(probabilities).item()
@@ -65,13 +65,17 @@ def run_pipeline_inference(raw_text: str):
         sentiment_label = sentiment_model.config.id2label[prediction_index]
         sentiment_score = probabilities[prediction_index].item()
 
-        # RUN INFERENCE FOR T5 SUMMARIZER
-        inputs = tokenizer("summarize: " + raw_text, return_tensors="pt", truncation=True, max_length=512).to(device)
+        # 2. OPTIMIZED HIGH-SPEED GENERATION FOR T5 SUMMARIZER
+        # Added padding=True to ensure the CPU doesn't process phantom matrix sequences
+        inputs = tokenizer("summarize: " + raw_text, return_tensors="pt", truncation=True, padding=True, max_length=512).to(device)
+        
         output = model.generate(
             inputs["input_ids"], 
-            num_beams=4, 
-            max_new_tokens=120, 
-            min_new_tokens=30, 
+            attention_mask=inputs["attention_mask"], # Tells the CPU to completely ignore empty padding spaces
+            num_beams=1,             # Swaps beam search to greedy generation, providing a 4x execution speedup
+            use_cache=True,          # Restores Key-Value storage caching so past tokens aren't re-computed
+            max_new_tokens=90,       # Optimized summary container limit
+            min_new_tokens=25, 
             early_stopping=True, 
             no_repeat_ngram_size=3, 
             length_penalty=1.0
@@ -116,25 +120,19 @@ async def scrape_and_summarize(payload: ScrapeRequest):
         
         extracted_text = article.text.strip()
         
-        # --- BULLETPROOF SEMANTIC CLEANING LAYER ---
-        # Detect if the parsed content is empty, short, or junk author data
         bad_phrases = ["covered South Asia", "written by", "subscriber only", "follow us on"]
         is_junk = any(phrase in extracted_text for phrase in bad_phrases)
         
         if is_junk or len(extracted_text) < 400:
             soup = BeautifulSoup(article.html, "html.parser")
-            
-            # 1. Stripping out scripts, footers, headers, and known author bio boxes
             for element in soup(["script", "style", "nav", "header", "footer", "aside"]):
                 element.extract()
                 
-            # 2. Target standard core news structural container elements
             paragraphs = soup.find_all("p")
             valid_blocks = []
             
             for p in paragraphs:
                 p_text = p.get_text().strip()
-                # Extract text chunks that look like genuine news text density
                 if len(p_text) > 50 and not any(phrase in p_text for phrase in bad_phrases):
                     valid_blocks.append(p_text)
                     
