@@ -35,16 +35,11 @@ MODEL_DIR = "/app/model_weights"
 SENTIMENT_DIR = "/app/sentiment_model"
 
 tokenizer = T5Tokenizer.from_pretrained("google-t5/t5-base")
-raw_model = T5ForConditionalGeneration.from_pretrained(MODEL_DIR)
-raw_model.config.use_cache = True
+model = T5ForConditionalGeneration.from_pretrained(MODEL_DIR)
+model.config.use_cache = True
 
-# "openmp" forces sequential memory efficiency on single-core setups
-model = torch.compile(raw_model, backend="openmp") 
-
-# SENTIMENT INITIALIZATION ---
 sentiment_tokenizer = AutoTokenizer.from_pretrained(SENTIMENT_DIR)
-raw_sentiment_model = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_DIR)
-sentiment_model = torch.compile(raw_sentiment_model, backend="openmp")
+sentiment_model = AutoModelForSequenceClassification.from_pretrained(SENTIMENT_DIR)
 
 class Article(BaseModel):
     text: str
